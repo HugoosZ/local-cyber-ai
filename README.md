@@ -1,0 +1,126 @@
+# IA local para Windows
+
+Chat local con **Ollama + Open WebUI**, preparado para una RTX 5070 de 12 GB y 32 GB de RAM. El modelo principal es `huihui_ai/qwen3.5-abliterated:9b`; el original `qwen3.5:9b` se puede descargar para comparar respuestas.
+
+La variante de Huihui modifica Qwen para reducir rechazos. Es experimental: no garantiza responder todas las preguntas, conservar toda la calidad del original ni acertar en sus respuestas. No hay que entrenar un modelo para usar este proyecto.
+
+## Inicio rapido
+
+1. Abre **Docker Desktop**. Usa contenedores Linux y backend **WSL 2**, con el driver NVIDIA de Windows actualizado.
+2. Haz doble clic en **`Iniciar.cmd`**. La primera vez descarga las imagenes y el modelo principal (unos 6,6 GB para el modelo, mas las imagenes). Las siguientes reutilizan lo descargado.
+3. Abre **http://127.0.0.1:3000** y crea tu primer usuario administrador. El nombre, correo y contrasena son de esta instalacion local; no necesitas una cuenta de OpenAI ni una API key. No se envia un correo de verificacion.
+4. Selecciona `huihui_ai/qwen3.5-abliterated:9b` y escribe tu pregunta.
+
+Tambien puedes arrancar desde PowerShell, ubicado en esta carpeta:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-LocalAI.ps1
+```
+
+`ExecutionPolicy Bypass` se aplica solo a ese proceso. El proyecto no cambia la politica de ejecucion del equipo.
+
+El primer usuario se convierte en administrador. El registro de cuentas adicionales queda cerrado. No se configura ninguna contrasena predeterminada.
+
+## Que se ejecuta
+
+| Servicio | Funcion | Acceso |
+| --- | --- | --- |
+| `ollama` | Ejecuta el modelo con NVIDIA GPU | Solo la red interna de Compose; sin puerto publicado |
+| `open-webui` | Chat, cuenta e historial | `127.0.0.1:3000`, solo este PC |
+
+La interfaz no usa GPU para inferencia: Ollama es el servicio que recibe la RTX. Hay una sola generacion y un modelo cargado a la vez, con contexto inicial de 8192 tokens.
+
+El razonamiento extendido esta desactivado por defecto (`think=false`) para evitar esperas largas en preguntas sencillas. Puedes activarlo para una consulta que lo necesite desde los parametros de razonamiento del chat. Esta opcion controla cuanto razona el modelo, no sus restricciones de contenido.
+
+No se configura busqueda web, proveedor OpenAI, modelos cloud, terminal ni ejecucion de codigo. Puedes pedir y leer codigo en el chat; este proyecto no lo ejecuta. Las conexiones directas a proveedores y los plugins estan deshabilitados en la configuracion inicial.
+
+`OFFLINE_MODE=true` evita las descargas automaticas de Hugging Face y la comprobacion de versiones de WebUI. **El proyecto no bloquea la red del sistema**: la descarga de imagenes y modelos necesita internet. Tras descargar todo, el chat local puede funcionar sin conexion. No se ha configurado RAG, embeddings ni analisis de PDF/Office; para esta primera version, pega el texto, codigo o logs en el chat. El administrador puede cambiar ajustes de WebUI, que se guardan en su base de datos.
+
+## Credenciales y archivos privados
+
+- El script genera una clave aleatoria de 32 bytes en **`.env`**, usado para firmar sesiones de WebUI. No muestra la clave ni la envia a GitHub.
+- Tu usuario y contrasena de WebUI se crean en la interfaz. La base de datos guarda el hash de la contrasena en un volumen Docker.
+- No necesitas tokens de OpenAI, Ollama ni Docker Hub para descargar estas imagenes y modelos publicos.
+- GitHub requiere tu propia sesion para crear o acceder al repositorio privado; esa sesion no forma parte del proyecto.
+- `.gitignore` excluye `.env`, pesos, bases de datos, logs y respaldos. Un repositorio privado tambien debe mantenerse libre de secretos.
+
+Conserva una copia privada de `.env`: cambiar la clave puede invalidar las sesiones. No adjuntes a issues la salida completa de `docker compose config`, porque incluye las variables resueltas. Usa `docker compose config --quiet` si solo quieres validar la sintaxis.
+
+## Comparar con Qwen original
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-LocalAI.ps1 -WithComparison
+```
+
+Esto descarga tambien `qwen3.5:9b`. Puedes elegir cualquiera desde WebUI. Solo se mantiene un modelo cargado a la vez; cambiar de modelo puede tardar unos segundos. Los tags de modelos pueden cambiar en el registro: revisa `VALIDATION.md` para ver los identificadores probados en esta instalacion.
+
+## Comprobar funcionamiento
+
+```powershell
+# Salud de servicios y modelos disponibles
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-LocalAI.ps1
+
+# Ademas genera una respuesta de prueba y muestra donde se cargo el modelo
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-LocalAI.ps1 -Inference
+```
+
+El resultado de `ollama ps` deberia indicar `100% GPU`. El tamano del archivo del modelo no es su consumo total: contexto, caches, escritorio y juegos tambien ocupan VRAM. No se promete una velocidad de generacion sin medir.
+
+La prueba de inferencia es una pregunta aritmetica acotada, sin razonamiento extendido: comprueba conexion, generacion y uso de GPU; no evalua la competencia del modelo en ciberseguridad.
+
+## Detener y volver a iniciar
+
+Haz doble clic en **`Detener.cmd`** para detener los servicios conservando cuentas, chats y modelos. Usa **`Iniciar.cmd`** para volver a arrancarlos. Docker Desktop debe estar en marcha.
+
+Los datos viven en estos volumenes Docker:
+
+- `local-cyber-ai_ollama-data`: modelos y datos de Ollama.
+- `local-cyber-ai_webui-data`: usuarios, conversaciones y ajustes de WebUI.
+
+No ejecutes `docker compose down -v` ni elimines esos volumenes si quieres conservar los datos. El repositorio de GitHub no respalda los volumenes. Antes de actualizar, detiene los servicios y respalda ambos volumenes con el mecanismo de exportacion de Docker Desktop, junto con `.env` en un lugar privado. Verifica la restauracion antes de borrar una instalacion anterior.
+
+## Ajustes de memoria y puerto
+
+Edita `.env` y vuelve a ejecutar `Iniciar.cmd`:
+
+- `WEBUI_PORT=3000`: cambia el puerto si ya esta ocupado. La escucha sigue limitada a `127.0.0.1`.
+- `OLLAMA_CONTEXT_LENGTH=8192`: puedes probar 16384 despues de medir memoria. Si falta VRAM, cierra aplicaciones que usen GPU o baja a 4096.
+- `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: punto de partida para 12 GB. Subirlos consume mas memoria y no da prioridad a un usuario.
+- `PRIMARY_MODEL`: modelo que se descarga e indica como predeterminado. Si tienes poca memoria, puedes probar `qwen3.5:4b`.
+
+Algunos ajustes de WebUI son persistentes: una vez guardados en la interfaz, pueden tener prioridad sobre las variables de arranque. No uses `ENABLE_PERSISTENT_CONFIG=false` como solucion habitual: los cambios de la interfaz dejarian de guardarse.
+
+## Si Docker o la GPU fallan
+
+1. Confirma que Docker Desktop termino de arrancar y usa Linux/WSL 2.
+2. Actualiza el driver **NVIDIA de Windows** y WSL si es necesario. No instales un driver NVIDIA de Linux dentro de WSL para este proyecto.
+3. Si la prueba de acceso GPU falla, el script se detiene y muestra el error; no cambia silenciosamente a CPU.
+4. Para diagnosticar arranque: `docker compose ps` y `docker compose logs --tail 80 ollama open-webui`. Revisa y anonimiza cualquier salida antes de compartirla.
+
+## Compartir con amigos
+
+Compartir el repositorio permite que cada persona lo ejecute en su propio PC. En ese caso cada instalacion genera su propia clave y crea su usuario.
+
+Esta version no publica tu instancia a la LAN ni a internet. Para compartir tu GPU mas adelante, configura una VPN como Tailscale y cuentas individuales de WebUI. Todos compartirian la misma capacidad; la cola de Ollama no garantiza prioridad al propietario.
+
+## Versiones y componentes
+
+- Ollama: `ollama/ollama:0.40.16`.
+- Open WebUI: `ghcr.io/open-webui/open-webui:v0.13.3`.
+- Modelo principal: `huihui_ai/qwen3.5-abliterated:9b`, cuantizacion Q4_K_M publicada por el autor.
+- Modelo de comparacion: `qwen3.5:9b`, opcional.
+
+Las imagenes tienen versiones fijadas; no hay actualizaciones automaticas. Para actualizar, respalda primero, revisa las notas de version y cambia los tags en `compose.yaml`. Una nueva version de WebUI puede migrar la base de datos: volver a una imagen anterior puede requerir restaurar el respaldo.
+
+Los componentes y pesos se descargan de sus autores y mantienen sus propias licencias. Este repositorio conserva el nombre y branding de Open WebUI y no redistribuye los pesos.
+
+## Fuentes oficiales
+
+- [Docker Desktop: GPU en Windows/WSL 2](https://docs.docker.com/desktop/features/gpu/)
+- [Ollama en Docker](https://docs.ollama.com/docker)
+- [Contexto y memoria en Ollama](https://docs.ollama.com/context-length)
+- [Open WebUI: instalacion](https://docs.openwebui.com/getting-started/quick-start/)
+- [Open WebUI: variables de entorno](https://docs.openwebui.com/reference/env-configuration/)
+- [Huihui Qwen3.5 9B: ficha del autor](https://huggingface.co/huihui-ai/Huihui-Qwen3.5-9B-abliterated)
+- [Qwen3.5 9B original](https://huggingface.co/Qwen/Qwen3.5-9B)
+- [Licencia de Open WebUI](https://docs.openwebui.com/license/)

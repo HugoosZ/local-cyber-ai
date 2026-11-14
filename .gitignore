@@ -1,0 +1,31 @@
+# Secretos y configuracion privada
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+credentials*
+
+# Datos del usuario (los datos reales se guardan en volumenes Docker)
+data/
+models/
+backups/
+logs/
+*.log
+*.gguf
+*.safetensors
+*.db
+*.db-*
+*.sqlite*
+*.tar
+*.tar.gz
+*.zip
+
+# Herramientas y temporales
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tmp
