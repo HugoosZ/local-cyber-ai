@@ -22,6 +22,45 @@ function Get-LocalAIDockerPath {
     throw 'No se encontro Docker. Instala Docker Desktop, activa WSL2 y abre Docker Desktop antes de continuar.'
 }
 
+function Test-LocalAIDockerEngine {
+    param([Parameter(Mandatory = $true)][string]$DockerPath)
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $null = & $DockerPath info --format '{{.OSType}}' 2>$null
+        return ($LASTEXITCODE -eq 0)
+    }
+    finally { $ErrorActionPreference = $previousPreference }
+}
+
+function Start-LocalAIDockerDesktop {
+    $dockerPath = Get-LocalAIDockerPath
+    if (Test-LocalAIDockerEngine -DockerPath $dockerPath) { return }
+
+    $candidates = @()
+    if ($env:LOCALAPPDATA) {
+        $candidates += Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\Docker Desktop.exe'
+    }
+    if ($env:ProgramFiles) {
+        $candidates += Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
+    }
+    $desktopPath = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $desktopPath) {
+        throw 'Docker no responde y no se encontro Docker Desktop. Abre Docker Desktop manualmente y vuelve a iniciar.'
+    }
+
+    Write-Host 'Iniciando Docker Desktop. Puede tardar un momento...'
+    if (-not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+        Start-Process -FilePath $desktopPath -WindowStyle Hidden | Out-Null
+    }
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    do {
+        if (Test-LocalAIDockerEngine -DockerPath $dockerPath) { return }
+        Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw 'Docker Desktop no termino de arrancar en 120 segundos. Revisa su ventana (WSL2 o configuracion inicial) y vuelve a ejecutar el inicio.'
+}
+
 function New-LocalAIEnvironment {
     $environmentPath = Join-Path $script:LocalAIProjectRoot '.env'
     if (Test-Path -LiteralPath $environmentPath -PathType Leaf) { return }
@@ -69,8 +108,15 @@ function Get-LocalAISettings {
         if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
             $name = $Matches[1]
             $value = $Matches[2].Trim()
-            if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
-                $value = $value.Substring(1, $value.Length - 1 - 1)
+            if ($value.StartsWith('"') -or $value.StartsWith("'")) {
+                $quote = $value.Substring(0, 1)
+                $closingQuote = $value.IndexOf($quote, 1)
+                if ($closingQuote -lt 0) { throw "El valor de $name tiene comillas sin cerrar en .env." }
+                $suffix = $value.Substring($closingQuote + 1).Trim()
+                if ($suffix -and -not $suffix.StartsWith('#')) {
+                    throw "El valor de $name contiene texto no valido en .env."
+                }
+                $value = $value.Substring(1, $closingQuote - 1)
             }
             else { $value = ([regex]::Replace($value, '\s+#.*$', '')).Trim() }
             $values[$name] = $value

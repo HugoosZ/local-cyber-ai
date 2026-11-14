@@ -1,4 +1,4 @@
-# IA local para Windows
+# EIAI: IA local para Windows
 
 Chat local con **Ollama + Open WebUI**, preparado para una RTX 5070 de 12 GB y 32 GB de RAM. El modelo principal es `huihui_ai/qwen3.5-abliterated:9b`; el original `qwen3.5:9b` se puede descargar para comparar respuestas.
 
@@ -6,12 +6,20 @@ La variante de Huihui modifica Qwen para reducir rechazos. Es experimental: no g
 
 ## Inicio rapido
 
-1. Abre **Docker Desktop**. Usa contenedores Linux y backend **WSL 2**, con el driver NVIDIA de Windows actualizado.
-2. Haz doble clic en **`Iniciar.cmd`**. La primera vez descarga las imagenes y el modelo principal (unos 6,6 GB para el modelo, mas las imagenes). Las siguientes reutilizan lo descargado.
-3. Abre **http://127.0.0.1:3000** y crea tu primer usuario administrador. El nombre, correo y contrasena son de esta instalacion local; no necesitas una cuenta de OpenAI ni una API key. No se envia un correo de verificacion.
+1. Instala **Docker Desktop** y completa su configuracion inicial con contenedores Linux y backend **WSL 2**, con el driver NVIDIA de Windows actualizado. Para usar `main.py` necesitas **Python 3.10 o posterior**; no hay paquetes que instalar con pip.
+2. En la carpeta del repositorio, ejecuta **`python main.py`** (o `py -3 main.py`). Si Docker Desktop esta cerrado, el arranque intenta abrirlo y espera a que este listo. La primera vez descarga las imagenes y el modelo principal (unos 6,6 GB para el modelo, mas las imagenes). Las siguientes reutilizan lo descargado.
+3. El navegador abre automaticamente **http://eiai.localhost:3000/** cuando el chat esta listo. Crea tu primer usuario administrador. El nombre, correo y contrasena son de esta instalacion local; no necesitas una cuenta de OpenAI ni una API key. No se envia un correo de verificacion.
 4. Selecciona `huihui_ai/qwen3.5-abliterated:9b` y escribe tu pregunta.
 
-Tambien puedes arrancar desde PowerShell, ubicado en esta carpeta:
+Para clonar e iniciar (necesitas acceso al repositorio privado):
+
+```powershell
+git clone https://github.com/HugoosZ/local-cyber-ai.git
+cd local-cyber-ai
+python main.py
+```
+
+Tambien puedes hacer doble clic en **`Iniciar.cmd`**, que abre el mismo enlace y funciona sin Python. El arranque PowerShell directo sigue disponible:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-LocalAI.ps1
@@ -21,12 +29,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-LocalAI.
 
 El primer usuario se convierte en administrador. El registro de cuentas adicionales queda cerrado. No se configura ninguna contrasena predeterminada.
 
+## Nombre local EIAI
+
+`eiai.localhost` es un nombre local reconocido por los navegadores modernos. No se cambia el DNS de Windows, no se modifica el archivo `hosts` y no se requieren permisos de administrador para crear el nombre. Tampoco hay un registro que comprar o un servicio DNS externo del que depender.
+
+Cada persona que clone y arranque el proyecto abrira **su propia instancia en su PC** mediante `http://eiai.localhost:3000/`. El puerto se obtiene de `WEBUI_PORT` en `.env`: si lo cambias a 3100, el lanzador abre `http://eiai.localhost:3100/`. La direccion original `http://127.0.0.1:3000/` sigue funcionando. El cambio de nombre puede pedirte iniciar sesion otra vez por las cookies del navegador; tus cuentas y conversaciones siguen en los mismos volumenes Docker.
+
+Opciones del lanzador:
+
+```powershell
+python main.py --no-browser
+python main.py --with-comparison
+```
+
+La primera inicia sin abrir una pestana. La segunda descarga ademas Qwen original. El navegador se abre solo despues de completar el arranque y comprobar que WebUI responde. `main.py` tambien funciona si lo ejecutas desde otra carpeta usando su ruta completa.
+
 ## Que se ejecuta
 
 | Servicio | Funcion | Acceso |
 | --- | --- | --- |
 | `ollama` | Ejecuta el modelo con NVIDIA GPU | Solo la red interna de Compose; sin puerto publicado |
-| `open-webui` | Chat, cuenta e historial | `127.0.0.1:3000`, solo este PC |
+| `open-webui` | Chat, cuenta e historial | `eiai.localhost:3000`, enlazado a `127.0.0.1`, solo este PC |
 
 La interfaz no usa GPU para inferencia: Ollama es el servicio que recibe la RTX. Hay una sola generacion y un modelo cargado a la vez, con contexto inicial de 8192 tokens.
 
@@ -49,7 +72,7 @@ Conserva una copia privada de `.env`: cambiar la clave puede invalidar las sesio
 ## Comparar con Qwen original
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-LocalAI.ps1 -WithComparison
+python main.py --with-comparison
 ```
 
 Esto descarga tambien `qwen3.5:9b`. Puedes elegir cualquiera desde WebUI. Solo se mantiene un modelo cargado a la vez; cambiar de modelo puede tardar unos segundos. Los tags de modelos pueden cambiar en el registro: revisa `VALIDATION.md` para ver los identificadores probados en esta instalacion.
@@ -70,7 +93,7 @@ La prueba de inferencia es una pregunta aritmetica acotada, sin razonamiento ext
 
 ## Detener y volver a iniciar
 
-Haz doble clic en **`Detener.cmd`** para detener los servicios conservando cuentas, chats y modelos. Usa **`Iniciar.cmd`** para volver a arrancarlos. Docker Desktop debe estar en marcha.
+Haz doble clic en **`Detener.cmd`** para detener los servicios conservando cuentas, chats y modelos. Usa **`python main.py`** o **`Iniciar.cmd`** para volver a arrancarlos. Si esta instalado pero cerrado, el arranque intenta abrir Docker Desktop y espera hasta 120 segundos. Si requiere configuracion inicial o una actualizacion de WSL, completa ese paso en su ventana y vuelve a ejecutar el inicio.
 
 Los datos viven en estos volumenes Docker:
 
@@ -117,6 +140,7 @@ Los componentes y pesos se descargan de sus autores y mantienen sus propias lice
 ## Fuentes oficiales
 
 - [Docker Desktop: GPU en Windows/WSL 2](https://docs.docker.com/desktop/features/gpu/)
+- [Microsoft: nombres locales con .localhost](https://learn.microsoft.com/en-us/aspnet/core/test/localhost-tld)
 - [Ollama en Docker](https://docs.ollama.com/docker)
 - [Contexto y memoria en Ollama](https://docs.ollama.com/context-length)
 - [Open WebUI: instalacion](https://docs.openwebui.com/getting-started/quick-start/)

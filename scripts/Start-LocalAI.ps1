@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$WithComparison)
+param([switch]$WithComparison, [switch]$OpenBrowser)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -8,6 +8,7 @@ try {
     New-LocalAIEnvironment
     $settings = Get-LocalAISettings
     Write-Host 'Comprobando Docker Desktop y Docker Compose...'
+    Start-LocalAIDockerDesktop
     Assert-LocalAIDockerReady
 
     Write-Host 'Comprobando que el contenedor puede acceder a la GPU NVIDIA...'
@@ -38,9 +39,15 @@ try {
     }
 
     Write-Host ''
-    Write-Host ("Listo. Abre http://127.0.0.1:{0} y crea tu cuenta de administrador." -f $settings.Port)
+    $localUrl = 'http://eiai.localhost:{0}' -f $settings.Port
+    Write-Host ("Listo. Abre {0}" -f $localUrl)
+    Write-Host 'La primera vez, crea tu cuenta de administrador.'
     Write-Host ("Selecciona {0} en el chat. Contexto configurado: {1} tokens." -f $settings.PrimaryModel, $settings.ContextLength)
     Write-Host 'Para comprobar una respuesta y el uso de GPU: .\scripts\Test-LocalAI.ps1 -Inference'
+    if ($OpenBrowser) {
+        try { Start-Process -FilePath $localUrl | Out-Null }
+        catch { Write-Warning ('No se pudo abrir el navegador automaticamente. Abre ' + $localUrl) }
+    }
 }
 catch {
     [Console]::Error.WriteLine(('ERROR: ' + $_.Exception.Message))

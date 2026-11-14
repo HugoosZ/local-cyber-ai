@@ -43,6 +43,20 @@ La prueba corta devolvio 2 tokens con 0,02 s de tiempo de generacion informado p
 
 Compose fija versiones semanticas. Los digest anteriores documentan las imagenes resueltas en esta instalacion; el ID del modelo permite detectar cambios futuros del tag.
 
+## Lanzador EIAI
+
+Comprobado el 14 de noviembre de 2026:
+
+- `python main.py` ejecutado con Python 3.12 de Windows desde otra carpeta: completo el arranque y abrio `http://eiai.localhost:3000/` mediante el navegador predeterminado.
+- `http://eiai.localhost:3000/health` devolvio HTTP 200 usando curl de Windows sin proxy.
+- Windows resolvio `eiai.localhost` a `::1` y `127.0.0.1`. No se modificaron DNS ni `hosts`.
+- Los servicios existentes siguieron `healthy`; el modelo instalado se reutilizo.
+- Pasaron 11 pruebas Python: puerto personalizado e invalido, rutas con espacios y cambio de carpeta, propagacion de errores, health sin proxies, apertura del navegador solo tras exito y opciones de linea de comandos.
+- Sintaxis PowerShell 5.1 correcta. En fixtures se verificaron Docker ya listo, Desktop cerrado, Desktop iniciandose y ejecutable ausente, sin detener servicios reales.
+- Se alineo la lectura de valores `.env` entre PowerShell y Python, comprobando un puerto entre comillas seguido de comentario.
+
+Los casos de Docker Desktop cerrado se probaron con mocks: no se cerro Docker Desktop en este equipo para no interrumpir otras aplicaciones. La prueba de integracion uso el motor que ya estaba en marcha. No se evaluo nuevamente la calidad del modelo para este cambio de nombre y arranque.
+
 ## Alcance de las pruebas
 
 No se creo una cuenta de usuario: el propietario debe crear su administrador en la interfaz. La inferencia se comprobo por API desde la red interna Docker, no desde una sesion de chat autenticada. El modelo original opcional no se descargo. Tampoco se ha evaluado la calidad del modelo en un incidente real, ni se han habilitado acceso remoto, busqueda web o herramientas de ejecucion.
