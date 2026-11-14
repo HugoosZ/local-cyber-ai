@@ -1,5 +1,7 @@
 # EIAI: IA local para Windows
 
+**Made by AI** — configuracion, lanzador y documentacion desarrollados con asistencia de IA. Ollama, Open WebUI y los modelos pertenecen a sus respectivos autores.
+
 Chat local con **Ollama + Open WebUI**, preparado para una RTX 5070 de 12 GB y 32 GB de RAM. El modelo principal es `huihui_ai/qwen3.5-abliterated:9b`; el original `qwen3.5:9b` se puede descargar para comparar respuestas.
 
 La variante de Huihui modifica Qwen para reducir rechazos. Es experimental: no garantiza responder todas las preguntas, conservar toda la calidad del original ni acertar en sus respuestas. No hay que entrenar un modelo para usar este proyecto.
@@ -76,6 +78,18 @@ python main.py --with-comparison
 ```
 
 Esto descarga tambien `qwen3.5:9b`. Puedes elegir cualquiera desde WebUI. Solo se mantiene un modelo cargado a la vez; cambiar de modelo puede tardar unos segundos. Los tags de modelos pueden cambiar en el registro: revisa `VALIDATION.md` para ver los identificadores probados en esta instalacion.
+
+## Cambiar de modelo
+
+El modelo no se importa desde Python: Ollama lo ejecuta como un servicio independiente. Para sustituirlo por otro compatible:
+
+1. Cambia `PRIMARY_MODEL` en tu `.env` por el identificador del modelo de Ollama.
+2. Ejecuta `python main.py`. El arranque descarga el modelo si todavia no esta instalado.
+3. Selecciona el nuevo modelo en el chat de WebUI. Sus ajustes persistidos pueden conservar la seleccion anterior aunque cambie el valor inicial del entorno.
+
+El lanzador, la interfaz y las cuentas se conservan. El modelo anterior permanece en disco hasta que lo elimines expresamente. Para que las nuevas instalaciones usen otro modelo, actualiza tambien `PRIMARY_MODEL` en `.env.example`; ese archivo no sobrescribe el `.env` de una instalacion existente.
+
+Normalmente basta con ese cambio de configuracion, siempre que el modelo quepa en la memoria disponible y lo soporte la version instalada de Ollama. Una arquitectura mas nueva puede requerir actualizar la imagen de Ollama en `compose.yaml`; otros modelos pueden necesitar distintos ajustes de contexto o razonamiento (`think`). Menor consumo de memoria no garantiza la misma calidad en todas las tareas. Compara sus respuestas antes de adoptarlo como predeterminado.
 
 ## Comprobar funcionamiento
 
