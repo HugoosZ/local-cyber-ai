@@ -15,40 +15,48 @@ import subprocess
 import sys
 import time
 from urllib.error import URLError
+from urllib.parse import urlencode
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_PORT = 3000
+DEFAULT_MODEL = "gemma4:12b"
 BROWSER_HOST = "eiai.localhost"
 
 
-def read_port(environment_file: Path) -> int:
-    """Read only the port setting; never print or return other .env values."""
+def _read_environment_value(environment_file: Path, setting: str) -> str | None:
+    """Read one requested setting without exposing the rest of the .env file."""
     if not environment_file.exists():
-        return DEFAULT_PORT
+        return None
 
-    raw_port: str | None = None
+    raw_value: str | None = None
     with environment_file.open(encoding="utf-8-sig") as source:
         for line in source:
-            match = re.match(r"^\s*WEBUI_PORT\s*=\s*(.*?)\s*$", line)
+            match = re.match(rf"^\s*{re.escape(setting)}\s*=\s*(.*?)\s*$", line)
             if match:
-                raw_port = match.group(1)
+                raw_value = match.group(1)
 
-    if raw_port is None:
-        return DEFAULT_PORT
-    if raw_port.startswith(("'", '"')):
-        quote = raw_port[0]
-        end = raw_port.find(quote, 1)
+    if raw_value is None:
+        return None
+    if raw_value.startswith(("'", '"')):
+        quote = raw_value[0]
+        end = raw_value.find(quote, 1)
         if end < 0:
-            raise ValueError("WEBUI_PORT tiene comillas sin cerrar en .env.")
-        suffix = raw_port[end + 1 :].strip()
+            raise ValueError(f"{setting} tiene comillas sin cerrar en .env.")
+        suffix = raw_value[end + 1 :].strip()
         if suffix and not suffix.startswith("#"):
-            raise ValueError("WEBUI_PORT contiene texto no valido en .env.")
-        value = raw_port[1:end]
+            raise ValueError(f"{setting} contiene texto no valido en .env.")
+        return raw_value[1:end]
     else:
-        value = re.split(r"\s+#", raw_port, maxsplit=1)[0].strip()
+        return re.split(r"\s+#", raw_value, maxsplit=1)[0].strip()
+
+
+def read_port(environment_file: Path) -> int:
+    value = _read_environment_value(environment_file, "WEBUI_PORT")
+    if value is None:
+        return DEFAULT_PORT
 
     if not re.fullmatch(r"[0-9]+", value):
         raise ValueError("WEBUI_PORT debe ser un entero entre 1 y 65535 en .env.")
@@ -56,6 +64,15 @@ def read_port(environment_file: Path) -> int:
     if not 1 <= port <= 65535:
         raise ValueError("WEBUI_PORT debe ser un entero entre 1 y 65535 en .env.")
     return port
+
+
+def read_primary_model(environment_file: Path) -> str:
+    value = _read_environment_value(environment_file, "PRIMARY_MODEL")
+    if value is None:
+        return DEFAULT_MODEL
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value):
+        raise ValueError("PRIMARY_MODEL debe contener un identificador de modelo Ollama valido en .env.")
+    return value
 
 
 def powershell_path() -> str:
@@ -128,7 +145,7 @@ def main(argv: list[str] | None = None, *, project_root: Path | None = None) -> 
     parser.add_argument(
         "--with-comparison",
         action="store_true",
-        help="Descargar tambien Qwen original para comparar respuestas.",
+        help="Descargar tambien el modelo de comparacion.",
     )
     args = parser.parse_args(argv)
 
@@ -148,6 +165,7 @@ def main(argv: list[str] | None = None, *, project_root: Path | None = None) -> 
         # Startup creates .env on the first run. Read the actual setting after it
         # succeeds, rather than assuming the initial installation's default port.
         port = read_port(root / ".env")
+        model = read_primary_model(root / ".env")
         wait_for_health(port)
     except KeyboardInterrupt:
         print("Arranque interrumpido.", file=sys.stderr)
@@ -156,7 +174,7 @@ def main(argv: list[str] | None = None, *, project_root: Path | None = None) -> 
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    url = f"http://{BROWSER_HOST}:{port}/"
+    url = f"http://{BROWSER_HOST}:{port}/?{urlencode({'model': model})}"
     print(f"EIAI esta listo: {url}")
     if not args.no_browser:
         try:

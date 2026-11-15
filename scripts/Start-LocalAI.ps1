@@ -38,11 +38,21 @@ try {
         }
     }
 
+    & (Join-Path $PSScriptRoot 'Install-ModelProfiles.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar los perfiles de modelos.' }
+
     Write-Host ''
-    $localUrl = 'http://eiai.localhost:{0}' -f $settings.Port
+    $localUrl = 'http://eiai.localhost:{0}/?model={1}' -f $settings.Port, [Uri]::EscapeDataString($settings.PrimaryModel)
     Write-Host ("Listo. Abre {0}" -f $localUrl)
     Write-Host 'La primera vez, crea tu cuenta de administrador.'
-    Write-Host ("Selecciona {0} en el chat. Contexto configurado: {1} tokens." -f $settings.PrimaryModel, $settings.ContextLength)
+    $chatContext = $settings.ContextLength
+    $profilePath = Join-Path $script:LocalAIProjectRoot 'model-profiles.json'
+    if (Test-Path -LiteralPath $profilePath) {
+        $profileDefinitions = [IO.File]::ReadAllText($profilePath) | ConvertFrom-Json
+        $profile = @($profileDefinitions | Where-Object { $_.id -eq $settings.PrimaryModel }) | Select-Object -First 1
+        if ($profile) { $chatContext = [int]$profile.params.num_ctx }
+    }
+    Write-Host ("Selecciona {0} en el chat. Contexto del perfil: {1} tokens." -f $settings.PrimaryModel, $chatContext)
     Write-Host 'Para comprobar una respuesta y el uso de GPU: .\scripts\Test-LocalAI.ps1 -Inference'
     if ($OpenBrowser) {
         try { Start-Process -FilePath $localUrl | Out-Null }

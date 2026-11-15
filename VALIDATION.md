@@ -2,7 +2,7 @@
 
 Este archivo registra comprobaciones reales, sin secretos ni datos de conversaciones. La presencia de configuracion por si sola no demuestra que la GPU este en uso.
 
-## Configuracion de referencia
+## Configuracion inicial de referencia (14 de noviembre)
 
 - Windows 11, Docker Desktop con contenedores Linux/WSL 2.
 - RTX 5070 de 12 GB.
@@ -78,3 +78,32 @@ Se diagnosticaron dos problemas distintos: consumo de contexto por herramientas 
 - `Repair-ChatDefaults.ps1` paso parser PowerShell 5.1 y fixtures de SQLite: respaldo previo, claves adicionales preservadas, usuarios/chats intactos, repeticion idempotente y errores ante DB ausente o JSON invalido. La secuencia de restauracion de WebUI se verifico tambien con mocks.
 
 Las pruebas del dia anterior siguen describiendo la instalacion inicial. El 15 de noviembre ya habia usuarios y conversaciones; no se utilizaron sus textos en las pruebas de generacion ni se publicaron datos del volumen.
+
+## Cambio a Gemma y perfiles por modelo
+
+Pruebas del 15 de noviembre de 2026 en el mismo equipo:
+
+- Se descargo Gemma 4 12B oficial Q4_K_M, ID `6114515d63c1`, unos 8 GB. Se conservo lo que ya estaba instalado.
+- La prueba inocua del pez identifico anzuelo, cebo y pescador. Con razonamiento activado la respuesta fue claramente no comerlo. No se reutilizaron conversaciones previas.
+- Las pruebas de argumento logico, argumento mutable por defecto en Python, memoria de un MoE y problema de cuaderno/lapiz dieron las conclusiones esperadas. Hubo explicaciones simplificadas y terminologia imperfecta; no constituyen un benchmark ni garantizan precision general.
+- En las cuatro pruebas cortas sin razonamiento, se midieron aproximadamente 64-66 tokens/s de generacion, excluyendo carga e ingreso del prompt. El primer arranque fue mas lento. Esas mediciones dependen de la pregunta y la carga del equipo.
+- Se probaron 8K, 16K, 32K y 128K de contexto con una generacion corta. En 128K y `draft_num_predict=0`, Ollama confirmo 100% GPU y se observaron unos 11700 MiB ocupados de 12227 MiB. Eso verifica asignacion y generacion, no procesamiento util de un historial de 128K.
+- El perfil de uso normal de Gemma 12B queda en 64K para dejar mas margen. El `.env` privado con 128K no fue borrado: un `num_ctx` por modelo prevalece sobre ese valor de respaldo.
+- Los parametros de Gemma son `think=true`, temperatura 1, top-p 0,95, top-k 64, penalizacion de presencia 0 y draft desactivado. No se agrego un tope global de salida.
+- `model-profiles.json` separa contexto y parametros de cada modelo. Los perfiles se guardan mediante las APIs internas de Open WebUI con respaldo SQLite previo, acceso del propietario y conservacion de los permisos de perfiles existentes.
+- El lanzador ahora abre `/?model=<PRIMARY_MODEL>` para que una seleccion previa del navegador no mantenga un modelo antiguo. La ruta PowerShell se alineo con ese comportamiento.
+- Pasaron 19 pruebas Python y la comprobacion de sintaxis de PowerShell. La prueba SQLite comprobo respaldo de datos comprometidos en WAL, preservacion de origen y rechazo de una base ausente.
+- `Test-LocalAI.ps1 -Inference` uso el contexto del perfil de 12B, obtuvo `4` y confirmo 100% GPU con 65536 tokens. Las herramientas internas siguieron desactivadas.
+
+El perfil oficial de 31B se registra separado, con 8K para limitar la memoria del contexto. Se comprobo lo siguiente:
+
+- Descarga e integridad de Gemma 4 31B Q4_K_M completadas, ID `17ba34c06c80`, unos 20 GB en disco.
+- La pregunta del pez y el anzuelo termino con `done_reason=stop` y una respuesta correcta de dos frases. Con `think=false`, genero 25 tokens en 6,38 s (unos 3,9 tokens/s); la carga inicial tardo 58,37 s y la peticion completa 73,98 s.
+- Con el modelo ya cargado y `think=true`, el problema de cuaderno/lapiz termino con `stop` y respuesta de 50 pesos. Genero 237 tokens, incluido razonamiento, en 63,92 s (unos 3,7 tokens/s); la peticion completa tardo 66,39 s.
+- `ollama ps` indico contexto 8192 y reparto `8%/92% CPU/GPU`. Es el reparto informado por Ollama, no utilizacion de GPU ni una medida de todo el consumo de RAM. Durante la carga se observaron unos 11500 MiB de VRAM ocupados y solo 0,32 GiB libres en Windows; la memoria quedo muy ajustada.
+- Docker tenia unos 15,18 GiB de memoria disponibles. No se cambio su limite ni se detuvieron contenedores de otras aplicaciones.
+- Los limites de 192 y 768 tokens se usaron solo en estas peticiones de diagnostico; no se guardaron como limite del chat.
+
+Estos resultados comprueban carga y respuestas puntuales. No demuestran que 31B sea mas preciso en general ni que iguale un servicio cloud. 12B permanece como modelo inicial por el margen de memoria y la velocidad.
+
+Comprobacion final: `python main.py --no-browser` reutilizo ambos perfiles sin cambios y genero el enlace con `gemma4:12b` seleccionado. La prueba `Test-LocalAI.ps1 -Inference -RequireFullGPU` obtuvo `4`, contexto 65536 y 100% GPU. Una lectura de solo los perfiles en SQLite confirmo 64K/8K, razonamiento activado y herramientas desactivadas en ambos; `http://eiai.localhost:3000/health` devolvio HTTP 200. La fixture de un modelo personalizado sin perfil termino correctamente sin invocar Docker real. El repositorio publico contiene configuracion y codigo, sin `.env`, pesos ni datos del volumen.

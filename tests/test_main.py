@@ -73,11 +73,45 @@ class StartupTests(unittest.TestCase):
             self.assertNotIn("shell", run.call_args.kwargs)
 
 
+class ModelTests(unittest.TestCase):
+    def test_missing_file_or_setting_uses_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = Path(directory) / ".env"
+            self.assertEqual(launcher.read_primary_model(environment), "gemma4:12b")
+            environment.write_text("WEBUI_PORT=3100\n", encoding="utf-8")
+            self.assertEqual(launcher.read_primary_model(environment), "gemma4:12b")
+
+    def test_custom_model_with_quotes_comments_and_last_assignment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = Path(directory) / ".env"
+            environment.write_text(
+                "WEBUI_SECRET_KEY=private-fixture-value\n"
+                "PRIMARY_MODEL=gemma4:12b\n"
+                "PRIMARY_MODEL='huihui_ai/gemma4-abliterated:12b' # personal\n",
+                encoding="utf-8-sig",
+            )
+            self.assertEqual(
+                launcher.read_primary_model(environment), "huihui_ai/gemma4-abliterated:12b"
+            )
+
+    def test_invalid_model_is_not_silently_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = Path(directory) / ".env"
+            for value in ("", "model name", "/model", "model?tools=anything", "'model", '"model"extra'):
+                with self.subTest(value=value):
+                    environment.write_text(f"PRIMARY_MODEL={value}\n", encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        launcher.read_primary_model(environment)
+
+
 class MainTests(unittest.TestCase):
-    def run_main(self, arguments=(), *, startup_return=0, health_error=None, port=3100):
+    def run_main(self, arguments=(), *, startup_return=0, health_error=None, port=3100, model=None):
         with tempfile.TemporaryDirectory(prefix="eiai project ") as directory:
             root = Path(directory)
-            (root / ".env").write_text(f"WEBUI_PORT={port}\n", encoding="utf-8")
+            content = f"WEBUI_PORT={port}\nWEBUI_SECRET_KEY=private-fixture-value\n"
+            if model is not None:
+                content += f"PRIMARY_MODEL={model}\n"
+            (root / ".env").write_text(content, encoding="utf-8")
             with patch.object(launcher.sys, "platform", "win32"), patch.object(
                 launcher, "start_stack", return_value=startup_return
             ) as startup, patch.object(
@@ -93,8 +127,20 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(startup.call_args.args[1])
         health.assert_called_once_with(3100)
-        browser.assert_called_once_with("http://eiai.localhost:3100/", new=2)
-        self.assertIn("http://eiai.localhost:3100/", stdout)
+        browser.assert_called_once_with("http://eiai.localhost:3100/?model=gemma4%3A12b", new=2)
+        self.assertIn("http://eiai.localhost:3100/?model=gemma4%3A12b", stdout)
+        self.assertNotIn("private-fixture-value", stdout)
+
+    def test_custom_model_is_urlencoded_and_does_not_expose_other_settings(self):
+        code, _, health, browser, stdout, stderr = self.run_main(
+            model="huihui_ai/gemma4-abliterated:12b"
+        )
+        self.assertEqual(code, 0)
+        health.assert_called_once_with(3100)
+        browser.assert_called_once_with(
+            "http://eiai.localhost:3100/?model=huihui_ai%2Fgemma4-abliterated%3A12b", new=2
+        )
+        self.assertNotIn("private-fixture-value", stdout + stderr)
 
     def test_start_failure_preserves_exit_and_never_opens_browser(self):
         code, _, health, browser, _, _ = self.run_main(startup_return=7)
@@ -120,6 +166,14 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 1)
         health.assert_not_called()
         browser.assert_not_called()
+
+    def test_invalid_model_does_not_open_browser_or_check_health(self):
+        code, _, health, browser, _, stderr = self.run_main(model="model?tools=anything")
+        self.assertEqual(code, 1)
+        health.assert_not_called()
+        browser.assert_not_called()
+        self.assertIn("PRIMARY_MODEL", stderr)
+        self.assertNotIn("private-fixture-value", stderr)
 
 
 class HealthTests(unittest.TestCase):

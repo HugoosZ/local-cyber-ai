@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Inference)
+param([switch]$Inference, [switch]$RequireFullGPU)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -40,6 +40,13 @@ finally:
     }
 
     if ($Inference) {
+        $testContext = $settings.ContextLength
+        $profilePath = Join-Path $script:LocalAIProjectRoot 'model-profiles.json'
+        if (Test-Path -LiteralPath $profilePath) {
+            $profileDefinitions = [IO.File]::ReadAllText($profilePath) | ConvertFrom-Json
+            $profile = @($profileDefinitions | Where-Object { $_.id -eq $settings.PrimaryModel }) | Select-Object -First 1
+            if ($profile) { $testContext = [int]$profile.params.num_ctx }
+        }
         Write-Host ("Probando una respuesta de {0}..." -f $settings.PrimaryModel)
         # Only single quotes inside this Python argument: Windows PowerShell 5.1 strips
         # embedded double quotes when forwarding native command arguments.
@@ -53,7 +60,7 @@ payload = {
     'messages': [{'role': 'user', 'content': 'Responde solo con el numero: 2 + 2.'}],
     'stream': False,
     'think': False,
-    'options': {'num_predict': 64, 'temperature': 0, 'num_ctx': int(sys.argv[2])},
+    'options': {'num_predict': 64, 'temperature': 0, 'num_ctx': int(sys.argv[2]), 'draft_num_predict': 0},
 }
 request = urllib.request.Request(
     'http://ollama:11434/api/chat',
@@ -75,15 +82,23 @@ print('Tokens generados: {0}; segundos de generacion: {1:.2f}'.format(
 '@
         Invoke-LocalAICompose -Arguments @(
             'exec', '-T', 'open-webui', 'python', '-c', $inferenceCode,
-            $settings.PrimaryModel, [string]$settings.ContextLength
+            $settings.PrimaryModel, [string]$testContext
         )
         $loadedModels = Invoke-LocalAICompose -Arguments @('exec', '-T', 'ollama', 'ollama', 'ps') -CaptureOutput
         Write-Host $loadedModels
         $primaryRow = @($loadedModels -split '\r?\n' | Where-Object { $_ -match ('^' + [regex]::Escape($settings.PrimaryModel) + '\s') }) | Select-Object -First 1
-        if ($null -eq $primaryRow -or $primaryRow -notmatch '100%\s+GPU') {
-            throw 'La inferencia termino, pero Ollama no confirma 100% GPU para el modelo principal. Revisa VRAM, contexto y otras aplicaciones que usen la GPU.'
+        if ($null -eq $primaryRow) {
+            throw 'La inferencia termino, pero el modelo no aparece cargado en Ollama.'
         }
-        Write-Host 'Inferencia completada. Ollama confirma que el modelo principal esta 100% en GPU.'
+        if ($primaryRow -match '100%\s+GPU') {
+            Write-Host 'Inferencia completada. Ollama confirma que el modelo principal esta 100% en GPU.'
+        }
+        elseif ($RequireFullGPU) {
+            throw 'La inferencia funciona, pero no esta completamente en GPU. Se exigio -RequireFullGPU.'
+        }
+        else {
+            Write-Host 'Inferencia completada usando CPU/RAM o una mezcla CPU/GPU. Es valido para modelos grandes, con menor velocidad.'
+        }
     }
     else {
         Write-Host 'Comprobacion basica completada. Usa -Inference para comprobar generacion y carga en GPU.'
