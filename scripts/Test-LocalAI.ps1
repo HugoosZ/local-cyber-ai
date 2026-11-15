@@ -15,6 +15,23 @@ try {
     if ($health.StatusCode -ne 200) { throw 'Open WebUI no devolvio HTTP 200 en /health.' }
     Write-Host 'Open WebUI responde correctamente en /health.'
 
+    # A working model alone does not detect WebUI injecting thousands of tool tokens.
+    $chatDefaultsCode = @'
+import json
+import sqlite3
+
+connection = sqlite3.connect('file:/app/backend/data/webui.db?mode=ro', uri=True)
+try:
+    row = connection.execute('SELECT value FROM config WHERE key = ?', ('models.default_metadata',)).fetchone()
+    metadata = json.loads(row[0]) if row else {}
+    if metadata.get('capabilities', {}).get('builtin_tools') is not False:
+        raise SystemExit('Las herramientas internas siguen habilitadas por defecto. Ejecuta scripts/Repair-ChatDefaults.ps1 y abre un chat nuevo.')
+    print('Chat de texto: herramientas internas desactivadas por defecto.')
+finally:
+    connection.close()
+'@
+    Invoke-LocalAICompose -Arguments @('exec', '-T', 'open-webui', 'python', '-c', $chatDefaultsCode)
+
     Write-Host 'Modelos disponibles en Ollama:'
     $modelList = Invoke-LocalAICompose -Arguments @('exec', '-T', 'ollama', 'ollama', 'list') -CaptureOutput
     Write-Host $modelList

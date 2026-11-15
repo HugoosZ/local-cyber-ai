@@ -7,7 +7,7 @@ services:
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NO_CLOUD: "1"
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-65536}
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
     volumes:
@@ -59,7 +59,8 @@ services:
       DO_NOT_TRACK: "true"
       ANONYMIZED_TELEMETRY: "false"
       DEFAULT_MODELS: ${PRIMARY_MODEL:-huihui_ai/qwen3.5-abliterated:9b}
-      DEFAULT_MODEL_PARAMS: '{"think":false}'
+      DEFAULT_MODEL_METADATA: '{"capabilities":{"builtin_tools":false}}'
+      DEFAULT_MODEL_PARAMS: '{"think":false,"temperature":0.7,"top_p":0.8,"top_k":20,"min_p":0.0,"presence_penalty":1.5,"repeat_penalty":1.0}'
     volumes:
       - webui-data:/app/backend/data
     healthcheck:

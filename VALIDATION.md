@@ -60,3 +60,21 @@ Los casos de Docker Desktop cerrado se probaron con mocks: no se cerro Docker De
 ## Alcance de las pruebas
 
 No se creo una cuenta de usuario: el propietario debe crear su administrador en la interfaz. La inferencia se comprobo por API desde la red interna Docker, no desde una sesion de chat autenticada. El modelo original opcional no se descargo. Tampoco se ha evaluado la calidad del modelo en un incidente real, ni se han habilitado acceso remoto, busqueda web o herramientas de ejecucion.
+
+## Correccion del 15 de noviembre de 2026
+
+Se diagnosticaron dos problemas distintos: consumo de contexto por herramientas integradas de WebUI y errores factuales del modelo.
+
+- En una respuesta cortada, los metadatos mostraron 7916 tokens de entrada y 276 de salida: se agoto exactamente el contexto anterior de 8192. No habia un pequeno tope global de salida configurado.
+- `ENABLE_PLUGINS=false` no desactivaba los built-ins. Se agrego `DEFAULT_MODEL_METADATA` con `capabilities.builtin_tools=false`, tanto para instalaciones nuevas como para el volumen existente mediante `Repair-ChatDefaults.ps1`.
+- La reparacion creo un respaldo SQLite privado en el volumen antes de actualizar solo `models.default_metadata` y `models.default_params`. WebUI volvio a estado healthy; las cuentas y conversaciones se conservaron.
+- El script de comprobacion ahora detecta si el volumen conserva las herramientas internas activadas por defecto.
+- Se aplicaron parametros de muestreo para Qwen3.5 sin razonamiento extendido. No se establecio un tope adicional de salida para el chat normal.
+- Se descargaron y compararon Huihui y Qwen3.5 9B original con preguntas tecnicas inocuas, sin historial ni herramientas. Ambos completaron esas respuestas con `done_reason=stop`. Huihui siguio inventando algunos detalles en preguntas abiertas; esta correccion no demuestra resolver las alucinaciones del modelo.
+- La pregunta directa sobre montar una IA local uso 81 tokens de entrada, frente a miles en las conversaciones anteriores. Esto es una prueba directa por API, no una medicion de una sesion visual completa de WebUI.
+- Se probaron contextos 32768, 65536 y 131072. Con 128K, Huihui respondio `OK`, `ollama ps` indico 100% GPU y contexto 131072, y se midieron aproximadamente 11480 MiB de los 12227 MiB de VRAM ocupados. Son mediciones puntuales, no una garantia de margen bajo otras cargas.
+- La instalacion del propietario se ajusta a 128K en su `.env` privado. La configuracion inicial del repositorio usa 64K para dejar mas margen.
+- Tras aplicar el valor privado y recrear Ollama, `Test-LocalAI.ps1 -Inference` paso: herramientas desactivadas, respuesta `4`, 100% GPU y contexto 131072. No habia `max_tokens` ni `num_predict` en los parametros globales de chat. Qwen original quedo instalado con ID corto `56671c2ab938`; Huihui se conservo como principal.
+- `Repair-ChatDefaults.ps1` paso parser PowerShell 5.1 y fixtures de SQLite: respaldo previo, claves adicionales preservadas, usuarios/chats intactos, repeticion idempotente y errores ante DB ausente o JSON invalido. La secuencia de restauracion de WebUI se verifico tambien con mocks.
+
+Las pruebas del dia anterior siguen describiendo la instalacion inicial. El 15 de noviembre ya habia usuarios y conversaciones; no se utilizaron sus textos en las pruebas de generacion ni se publicaron datos del volumen.

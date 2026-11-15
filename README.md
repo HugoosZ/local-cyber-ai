@@ -53,11 +53,15 @@ La primera inicia sin abrir una pestana. La segunda descarga ademas Qwen origina
 | `ollama` | Ejecuta el modelo con NVIDIA GPU | Solo la red interna de Compose; sin puerto publicado |
 | `open-webui` | Chat, cuenta e historial | `eiai.localhost:3000`, enlazado a `127.0.0.1`, solo este PC |
 
-La interfaz no usa GPU para inferencia: Ollama es el servicio que recibe la RTX. Hay una sola generacion y un modelo cargado a la vez, con contexto inicial de 8192 tokens.
+La interfaz no usa GPU para inferencia: Ollama es el servicio que recibe la RTX. Hay una sola generacion y un modelo cargado a la vez, con contexto inicial de **65536 tokens (64K)**, probado completamente en GPU en una RTX 5070 de 12 GB. El contexto incluye instrucciones, historial y respuesta; no es una memoria infinita.
+
+Para el chat normal no se fija un tope adicional de salida (`max_tokens` o `num_predict`). Ollama conserva su comportamiento sin un tope de generacion explicito; la respuesta aun debe terminar dentro del contexto y la memoria disponible. La prueba automatica de aritmetica usa un limite pequeno solo para esa peticion de diagnostico.
 
 El razonamiento extendido esta desactivado por defecto (`think=false`) para evitar esperas largas en preguntas sencillas. Puedes activarlo para una consulta que lo necesite desde los parametros de razonamiento del chat. Esta opcion controla cuanto razona el modelo, no sus restricciones de contenido.
 
 No se configura busqueda web, proveedor OpenAI, modelos cloud, terminal ni ejecucion de codigo. Puedes pedir y leer codigo en el chat; este proyecto no lo ejecuta. Las conexiones directas a proveedores y los plugins estan deshabilitados en la configuracion inicial.
+
+Las herramientas integradas de WebUI tambien estan desactivadas por defecto mediante `DEFAULT_MODEL_METADATA`: desactivar plugins por si solo no desactiva herramientas como `ask_user`. El chat de texto no necesita esos esquemas, que pueden ocupar gran parte de un contexto de 8192 tokens. Se usan parametros de muestreo para Qwen3.5 en modo sin razonamiento; al cambiar de familia de modelo conviene revisarlos.
 
 `OFFLINE_MODE=true` evita las descargas automaticas de Hugging Face y la comprobacion de versiones de WebUI. **El proyecto no bloquea la red del sistema**: la descarga de imagenes y modelos necesita internet. Tras descargar todo, el chat local puede funcionar sin conexion. No se ha configurado RAG, embeddings ni analisis de PDF/Office; para esta primera version, pega el texto, codigo o logs en el chat. El administrador puede cambiar ajustes de WebUI, que se guardan en su base de datos.
 
@@ -121,11 +125,13 @@ No ejecutes `docker compose down -v` ni elimines esos volumenes si quieres conse
 Edita `.env` y vuelve a ejecutar `Iniciar.cmd`:
 
 - `WEBUI_PORT=3000`: cambia el puerto si ya esta ocupado. La escucha sigue limitada a `127.0.0.1`.
-- `OLLAMA_CONTEXT_LENGTH=8192`: puedes probar 16384 despues de medir memoria. Si falta VRAM, cierra aplicaciones que usen GPU o baja a 4096.
+- `OLLAMA_CONTEXT_LENGTH=65536`: contexto de 64K probado en este equipo. Si falta VRAM, baja a 32768, 16384 u 8192. Otros modelos, GPUs o aplicaciones pueden consumir mas memoria; aumentar este numero requiere volver a medir.
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: punto de partida para 12 GB. Subirlos consume mas memoria y no da prioridad a un usuario.
 - `PRIMARY_MODEL`: modelo que se descarga e indica como predeterminado. Si tienes poca memoria, puedes probar `qwen3.5:4b`.
 
 Algunos ajustes de WebUI son persistentes: una vez guardados en la interfaz, pueden tener prioridad sobre las variables de arranque. No uses `ENABLE_PERSISTENT_CONFIG=false` como solucion habitual: los cambios de la interfaz dejarian de guardarse.
+
+Tambien se probo `OLLAMA_CONTEXT_LENGTH=131072` (128K) con Huihui 9B: permanecio 100% en GPU, pero dejo aproximadamente 750 MiB libres en ese momento. Es una opcion para priorizar contexto con pocas aplicaciones usando GPU. El ejemplo del repositorio conserva 64K para dejar mas margen; tu `.env` privado puede usar 128K. Si juegas al mismo tiempo, reduce el contexto o detiene la IA.
 
 ## Si Docker o la GPU fallan
 
@@ -133,6 +139,20 @@ Algunos ajustes de WebUI son persistentes: una vez guardados en la interfaz, pue
 2. Actualiza el driver **NVIDIA de Windows** y WSL si es necesario. No instales un driver NVIDIA de Linux dentro de WSL para este proyecto.
 3. Si la prueba de acceso GPU falla, el script se detiene y muestra el error; no cambia silenciosamente a CPU.
 4. Para diagnosticar arranque: `docker compose ps` y `docker compose logs --tail 80 ollama open-webui`. Revisa y anonimiza cualquier salida antes de compartirla.
+
+## Si aparecen herramientas o respuestas cortadas
+
+Si actualizas una instalacion anterior y ves `View Result from ask_user`, o respuestas que se cortan a mitad de palabra aun en chats cortos, aplica los nuevos valores al volumen existente:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Repair-ChatDefaults.ps1
+```
+
+El script detiene brevemente solo WebUI, respalda su base de datos en la carpeta privada `backups` del volumen `webui-data`, aplica los defaults de chat del Compose y vuelve a iniciar WebUI. No edita cuentas ni conversaciones. Despues abre **un chat nuevo**, ya que el anterior puede contener resultados de herramientas e instrucciones antiguas. Una configuracion explicita de un modelo personalizado puede prevalecer sobre los defaults globales: revisa su capacidad Builtin Tools si lo has personalizado.
+
+El limite de contexto incluye entrada y salida. En la configuracion anterior, 7916 tokens de entrada en un contexto de 8192 dejaban solo 276 para responder. Ahora el valor inicial es 64K, y ademas se retiraron las herramientas innecesarias. Aumentar el contexto no mejora por si solo el conocimiento del modelo. En una instalacion existente, cambia tambien `OLLAMA_CONTEXT_LENGTH=65536` en tu `.env` y ejecuta `python main.py`: `.env.example` no sobrescribe tu configuracion privada.
+
+Una respuesta completa tampoco garantiza precision: la variante Huihui puede inventar datos tecnicos. Compara con Qwen original mediante `python main.py --with-comparison` y selecciona `qwen3.5:9b` en el chat. El modelo original puede tener un comportamiento de rechazo distinto. No se modifica automaticamente tu eleccion de modelo principal.
 
 ## Compartir con amigos
 
