@@ -110,7 +110,7 @@ El modelo no se importa desde Python: Ollama lo ejecuta como un servicio indepen
 
 El lanzador, la interfaz y las cuentas se conservan. El modelo anterior permanece en disco hasta que lo elimines expresamente. Para que las nuevas instalaciones usen otro modelo, actualiza tambien `PRIMARY_MODEL` en `.env.example`; ese archivo no sobrescribe el `.env` de una instalacion existente.
 
-Si actualizas desde la configuracion anterior de Huihui, cambia `PRIMARY_MODEL=gemma4:12b` en `.env`, ejecuta `python main.py` y aplica `scripts/Repair-ChatDefaults.ps1` para actualizar los parametros que WebUI ya guardo en su volumen. Despues selecciona Gemma en un chat nuevo. No reutilices el perfil de Qwen con Gemma sin revisarlo: los parametros predeterminados globales afectan a los modelos que no tengan ajustes propios.
+Si actualizas desde la configuracion anterior de Huihui, cambia `PRIMARY_MODEL=gemma4:12b` en `.env`, ejecuta `python main.py` y aplica `scripts/Repair-ChatDefaults.ps1` para actualizar los parametros que WebUI ya guardo en su volumen. Despues selecciona Gemma en un chat nuevo. No reutilices el perfil del modelo anterior con Gemma sin revisarlo: los parametros predeterminados globales afectan a los modelos que no tengan ajustes propios.
 
 Normalmente basta con ese cambio de configuracion, siempre que el modelo quepa en la memoria disponible y lo soporte la version instalada de Ollama. Una arquitectura mas nueva puede requerir actualizar la imagen de Ollama en `compose.yaml`; otros modelos pueden necesitar distintos ajustes de contexto o razonamiento (`think`). Menor consumo de memoria no garantiza la misma calidad en todas las tareas. Compara sus respuestas antes de adoptarlo como predeterminado.
 
@@ -146,7 +146,7 @@ Edita `.env` y vuelve a ejecutar `Iniciar.cmd`:
 - `WEBUI_PORT=3000`: cambia el puerto si ya esta ocupado. La escucha sigue limitada a `127.0.0.1`.
 - `OLLAMA_CONTEXT_LENGTH=65536`: respaldo para modelos sin un contexto propio. Para Gemma 12B/31B cambia `params.num_ctx` en `model-profiles.json`; ese valor prevalece sobre `.env`. Si falta VRAM, reduce el contexto del perfil y vuelve a iniciar. Otros modelos, GPUs o aplicaciones pueden consumir mas memoria; aumentar el contexto requiere volver a medir.
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: punto de partida para 12 GB. Subirlos consume mas memoria y no da prioridad a un usuario.
-- `PRIMARY_MODEL`: modelo que se descarga e indica como predeterminado. Si tienes poca memoria, puedes probar `qwen3.5:4b`.
+- `PRIMARY_MODEL`: modelo que se descarga e indica como predeterminado. Los perfiles incluidos requieren comprobar la memoria disponible en cada equipo.
 
 Algunos ajustes de WebUI son persistentes: una vez guardados en la interfaz, pueden tener prioridad sobre las variables de arranque. No uses `ENABLE_PERSISTENT_CONFIG=false` como solucion habitual: los cambios de la interfaz dejarian de guardarse.
 
@@ -201,6 +201,4 @@ Los componentes y pesos se descargan de sus autores y mantienen sus propias lice
 - [Gemma 4 12B en Ollama](https://ollama.com/library/gemma4:12b)
 - [Gemma 4 31B en Ollama](https://ollama.com/library/gemma4:31b)
 - [Gemma: mejores practicas](https://github.com/google-gemma/docs/blob/main/docs/get-started/best-practices.md)
-- [Huihui Qwen3.5 9B: ficha del autor](https://huggingface.co/huihui-ai/Huihui-Qwen3.5-9B-abliterated)
-- [Qwen3.5 9B original](https://huggingface.co/Qwen/Qwen3.5-9B)
 - [Licencia de Open WebUI](https://docs.openwebui.com/license/)

@@ -107,3 +107,7 @@ El perfil oficial de 31B se registra separado, con 8K para limitar la memoria de
 Estos resultados comprueban carga y respuestas puntuales. No demuestran que 31B sea mas preciso en general ni que iguale un servicio cloud. 12B permanece como modelo inicial por el margen de memoria y la velocidad.
 
 Comprobacion final: `python main.py --no-browser` reutilizo ambos perfiles sin cambios y genero el enlace con `gemma4:12b` seleccionado. La prueba `Test-LocalAI.ps1 -Inference -RequireFullGPU` obtuvo `4`, contexto 65536 y 100% GPU. Una lectura de solo los perfiles en SQLite confirmo 64K/8K, razonamiento activado y herramientas desactivadas en ambos; `http://eiai.localhost:3000/health` devolvio HTTP 200. La fixture de un modelo personalizado sin perfil termino correctamente sin invocar Docker real. El repositorio publico contiene configuracion y codigo, sin `.env`, pesos ni datos del volumen.
+
+## Limpieza de modelos anteriores (15 de noviembre)
+
+A peticion del propietario se retiraron las descargas `qwen3.5:9b` y `huihui_ai/qwen3.5-abliterated:9b` mediante `ollama rm`. La lista posterior contiene `gemma4:12b`, `gemma4:31b` y la descarga preexistente `huihui_ai/gemma-4-abliterated:12b`. Los perfiles del proyecto y el modelo predeterminado siguen siendo los oficiales de Gemma. Las secciones anteriores conservan los resultados historicos de Qwen; no son recomendaciones actuales. No se borraron cuentas ni conversaciones.
